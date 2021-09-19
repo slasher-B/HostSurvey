@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 )
+
 //------------------------------------------------------------------------------
 //这是一个go编写的，有主机发现、端口扫描、服务识别功能的命令行工具,可适应内外网,设计模型参考nmap,
 //原本是准备用来加进SutureMonster这个项目的，结果发现可以独立出来当一个小工具,
@@ -22,7 +23,7 @@ import (
 //优化了代码结构和输出方式,加入代理支持;
 //@author: B
 //------------------------------------------------------------------------------
-var(
+var (
 	TARGET  string
 	FILE    string
 	PORT    string
@@ -34,9 +35,10 @@ var(
 	PING    bool
 	FLAG    bool
 
-	ipList    []string
-	result    []string
+	ipList []string
+	result []string
 )
+
 func init() {
 	fmt.Println("    __  __           __  _____                            \n" +
 		"   / / / /___  _____/ /_/ ___/__  ________   _____  __  __\n" +
@@ -46,126 +48,121 @@ func init() {
 		"                                                 /____/   \n" +
 		"                                         Author: _B_\n" +
 		"-------------------------------------------------------")
-	flag.StringVar(&TARGET,"addr","","[-addr 1.1.1.1 || 1.1.1.0/24 || 1.1.1.1-10 || example.com]  指定扫描ip或c段或url.")
-	flag.StringVar(&FILE,"f","","[-f target.txt]  从文件读取目标,支持格式:example.org, 1.1.1.1, 1.1.1.0/24, 1.1.1.1-10")
-	flag.StringVar(&PORT,"p","","[-p 21-23,25,3306,3389]  指定扫描的端口.")
-	flag.StringVar(&MOD,"m","all","[-m all]  选择扫描模式:host=主机发现,port=端口扫描,sign=服务识别,all=全部.")
-	flag.IntVar(&TIMEOUT,"t",5,"[-t 2]  设置等待回包的超时时间.")
-	flag.StringVar(&NETWORK,"e","","[-e ethernet0]  选择host模式下用来扫描的网卡,不输入则选择默认网卡.")
-	flag.StringVar(&PROXY,"proxy","","[-proxy http://127.0.0.1:10809]  设置代理,host模式下不支持.")
-	flag.StringVar(&OUTPUT,"o","","[-o /opt/result.txt]  自定义输出路径.")
-	flag.BoolVar(&PING,"ping",false,"[-ping]  扫描前是否对目标使用ping命令,默认不使用.")
-	flag.BoolVar(&FLAG,"arp",false,"[-arp]  主机扫描模式下选择扫描模式,默认syn,可选arp.")
+	flag.StringVar(&TARGET, "addr", "", "[-addr 1.1.1.1 || 1.1.1.0/24 || 1.1.1.1-10 || example.com]  指定扫描ip或c段或url.")
+	flag.StringVar(&FILE, "f", "", "[-f target.txt]  从文件读取目标,支持格式:example.org, 1.1.1.1, 1.1.1.0/24, 1.1.1.1-10")
+	flag.StringVar(&PORT, "p", "", "[-p 21-23,25,3306,3389]  指定扫描的端口.")
+	flag.StringVar(&MOD, "m", "all", "[-m all]  选择扫描模式:host=主机发现,port=端口扫描,sign=服务识别,all=全部.")
+	flag.IntVar(&TIMEOUT, "t", 5, "[-t 2]  设置等待回包的超时时间.")
+	flag.StringVar(&NETWORK, "e", "", "[-e ethernet0]  选择host模式下用来扫描的网卡,不输入则选择默认网卡.")
+	flag.StringVar(&PROXY, "proxy", "", "[-proxy http://127.0.0.1:10809]  设置代理,host模式下不支持.")
+	flag.StringVar(&OUTPUT, "o", "", "[-o /opt/result.txt]  自定义输出路径.")
+	flag.BoolVar(&PING, "ping", false, "[-ping]  扫描前是否对目标使用ping命令,默认不使用.")
+	flag.BoolVar(&FLAG, "arp", false, "[-arp]  主机扫描模式下选择扫描模式,默认syn,可选arp.")
 	flag.Parse()
 }
 
-func run(domainList map[string]string){
-	if PING{
+func run(domainList map[string]string) {
+	if PING {
 		ipList = lib.ICMPRun(ipList)
 	}
 	l := src.DefFormant()
-	var ips      []string
+	var ips []string
 
-	if MOD == "all"{
+	if MOD == "all" {
 		fmt.Println("[INFO]HostSurvey -> 全能模式")
-		var portStr  string
-		var tarList  []string
+		var portStr string
+		var tarList []string
 		var portList []string
-		if !FLAG{
-			ips = hostScan.RunSYN(NETWORK,ipList)
+		if !FLAG {
+			ips = hostScan.RunSYN(NETWORK, ipList)
 		} else {
 			ips = hostScan.ArpScanRun(NETWORK)
 		}
-		liveHost,liveAddr := src.TCPportScan(ips,PORT,TIMEOUT)
+		liveHost, liveAddr := src.TCPportScan(ips, PORT, TIMEOUT)
 		// 为了兼容端口转换格式
-		for _,addr := range liveAddr{
-			portList = append(portList,strings.Split(addr,":")[1] + ",")
+		for _, addr := range liveAddr {
+			portList = append(portList, strings.Split(addr, ":")[1]+",")
 		}
-		for _,port := range lib.GetOnly(portList){
+		for _, port := range lib.GetOnly(portList) {
 			portStr += port + ","
 		}
-		for _,host := range liveHost{
-			if domainList[host] != ""{
-				tarList = append(tarList,domainList[host])
+		for _, host := range liveHost {
+			if domainList[host] != "" {
+				tarList = append(tarList, domainList[host])
 			}
 		}
-		signList := src.WebSignRun(tarList,portStr,TIMEOUT,PROXY)
+		signList := src.WebSignRun(tarList, portStr, TIMEOUT, PROXY)
 		l.Lh = liveHost              // h.h.h.h
 		l.La = liveAddr              // h.h.h.h:pp
 		l.Sl = signList              // http(s)://url.com(:pp),ssss
-		result = src.Formant(MOD,l)  // h.h.h.h,pp,http(s)://url.com(:pp),ssss
+		result = src.Formant(MOD, l) // h.h.h.h,pp,http(s)://url.com(:pp),ssss
 
-
-	} else if MOD == "host"{
+	} else if MOD == "host" {
 		fmt.Println("[INFO]HostSurvey -> 主机探测模式")
-		if lib.GetSys().OS == "windows"{
+		if lib.GetSys().OS == "windows" {
 			fmt.Println("[WARN]Windows环境下需要安装winpcap -> https://www.winpcap.org/devel.htm")
 		}
-		if !FLAG{
-			result = hostScan.RunSYN(NETWORK,ipList)
+		if !FLAG {
+			result = hostScan.RunSYN(NETWORK, ipList)
 		} else {
 			result = hostScan.ArpScanRun(NETWORK)
 		}
 
-
-	} else if MOD == "port"{
+	} else if MOD == "port" {
 		fmt.Println("[INFO]HostSurvey -> 端口扫描模式")
-		if !FLAG{
-			ips = hostScan.RunSYN(NETWORK,ips)
+		if !FLAG {
+			ips = hostScan.RunSYN(NETWORK, ips)
 		} else {
 			ips = hostScan.ArpScanRun(NETWORK)
 		}
-		l.Lh,l.La = src.TCPportScan(ips,PORT,TIMEOUT)
-		result = src.Formant(MOD,l)
+		l.Lh, l.La = src.TCPportScan(ips, PORT, TIMEOUT)
+		result = src.Formant(MOD, l)
 
-
-	} else if MOD == "sign"{
+	} else if MOD == "sign" {
 		fmt.Println("[INFO]HostSurvey -> 服务识别模式")
 		var domains []string
-		if PROXY != ""{
+		if PROXY != "" {
 			PROXY = lib.CheckProxy(PROXY)
 		}
-		for _,i := range ipList{
-			domains = append(domains,domainList[i])
+		for _, i := range ipList {
+			domains = append(domains, domainList[i])
 		}
-		l.Sl = src.WebSignRun(domains,PORT,TIMEOUT,PROXY)
-		result = src.Formant(MOD,l)
+		l.Sl = src.WebSignRun(domains, PORT, TIMEOUT, PROXY)
+		result = src.Formant(MOD, l)
 	} else {
 		flag.Usage()
 		return
 	}
-	if OUTPUT != ""{
-		src.OutPutRes(result,OUTPUT)
+	if OUTPUT != "" {
+		src.OutPutRes(result, OUTPUT)
 
-
-// ----------------------- SutureMonster output begin -----------------------
-		if MOD == "port"{
+		// ----------------------- SutureMonster output begin -----------------------
+		if MOD == "port" {
 			var (
 				portSM []string
 				ipSM   []string
 				path   string
 			)
-			for _,res := range result{
-				portSM = append(portSM,strings.Split(res,",")[2])
+			for _, res := range result {
+				portSM = append(portSM, strings.Split(res, ",")[2])
 			}
 			portSM = lib.GetOnly(portSM)
-			for _,p := range portSM{
-				for _,r := range result{
-					if p == strings.Split(r,",")[2]{
-						ipSM = append(ipSM,strings.Split(r,",")[1])
+			for _, p := range portSM {
+				for _, r := range result {
+					if p == strings.Split(r, ",")[2] {
+						ipSM = append(ipSM, strings.Split(r, ",")[1])
 					}
 				}
-				if lib.GetSys().OS == "windows"{
+				if lib.GetSys().OS == "windows" {
 					path = filepath.Dir(OUTPUT) + "\\" + p
 				} else {
 					path = filepath.Dir(OUTPUT) + "/" + p
 				}
-				src.OutPutRes(lib.GetOnly(ipSM),path)
+				src.OutPutRes(lib.GetOnly(ipSM), path)
 				ipSM = []string{}
 			}
 		}
-// ------------------------SutureMonster output end------------------------
-
+		// ------------------------ SutureMonster output end ------------------------
 
 	}
 	fmt.Println("[INFO]HostSurvey finish.")
@@ -193,44 +190,46 @@ func main() {
 	modReg := regexp.MustCompile(`^all$|^host$|^port$|^sign$`).MatchString(strings.ToLower(MOD))
 
 	domainList := make(map[string]string)
-	if modReg == false{
+	if modReg == false {
 		flag.Usage()
 		return
-	} else if MOD == "sign" && portReg == false{
+	} else if MOD == "sign" && portReg == false {
 		fmt.Println("[WARN]-p参数为空或格式有误,将识别常用端口号.")
-		for _,i := range config.DefaultPorts{
+		for _, i := range config.DefaultPorts {
 			PORT += strconv.Itoa(i)
 		}
-	} else if MOD == "host"{
+	} else if MOD == "host" {
 		run(nil)
 	}
-	if TARGET != "" && FILE == "" && (addrReg == true || addrReg2 == true || addrReg3 == true){
-		ips,domain := lib.ParseIP(TARGET)
-		ipList = append(ipList,ips[0])
-		if domain != ""{
+	if TARGET != "" && FILE == "" && (addrReg == true || addrReg2 == true || addrReg3 == true) {
+		ips, domain := lib.ParseIP(TARGET)
+		ipList = append(ipList, ips[0])
+		if domain != "" {
 			domainList[ips[0]] = domain
 		}
-	} else if TARGET == "" && FILE != ""{
-		_,e := os.Stat(FILE)
-		if os.IsNotExist(e){
+	} else if TARGET == "" && FILE != "" {
+		_, e := os.Stat(FILE)
+		if os.IsNotExist(e) {
 			flag.Usage()
 			return
 		}
-		f,_ := os.Open(FILE)
+		f, _ := os.Open(FILE)
 		defer f.Close()
 		br := bufio.NewReader(f)
-		for{
-			line,_,er := br.ReadLine()
-			if er == io.EOF{break}
-			tmpList,domain := lib.ParseIP(string(line))
-			if domain != ""{
+		for {
+			line, _, er := br.ReadLine()
+			if er == io.EOF {
+				break
+			}
+			tmpList, domain := lib.ParseIP(string(line))
+			if domain != "" {
 				domainList[tmpList[0]] = domain
 			}
-			for _,l := range tmpList{
+			for _, l := range tmpList {
 				ipList = append(ipList, l)
 			}
 		}
-	}else {
+	} else {
 		flag.Usage()
 		return
 	}
